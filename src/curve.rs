@@ -113,10 +113,7 @@ impl SignedDistance {
 impl PartialOrd for SignedDistance {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         if (self.distance.abs() - other.distance.abs()).abs() <= 1e-4 {
-            other
-                .orthogonality
-                .abs()
-                .partial_cmp(&self.orthogonality.abs())
+            other.orthogonality.partial_cmp(&self.orthogonality)
         } else {
             self.distance.abs().partial_cmp(&other.distance.abs())
         }
@@ -126,22 +123,9 @@ impl PartialOrd for SignedDistance {
 pub trait BezierCurve: Sized {
     fn pos_at_t(&self, t: f32) -> Vec2;
     fn dir_at_t(&self, t: f32) -> Vec2;
-    fn closest_t(&self, p: Vec2) -> f32;
+    fn signed_distance(&self, p: Vec2) -> SignedDistance;
     fn bounding_box(&self) -> Rect;
     fn split(&self, t: f32) -> [Self; 2];
-
-    fn signed_distance(&self, p: Vec2) -> SignedDistance {
-        let t = self.closest_t(p).clamp(0.0, 1.0);
-        let v = self.pos_at_t(t) - p;
-        let d = self.dir_at_t(t);
-
-        let distance = v.length().copysign(d.cross(v));
-        let orthogonality = d.normalized_or_zero().cross(-v.normalized_or_zero()).abs();
-        SignedDistance {
-            distance,
-            orthogonality,
-        }
-    }
 }
 
 impl BezierCurve for Line {
@@ -153,8 +137,19 @@ impl BezierCurve for Line {
         self.1 - self.0
     }
 
-    fn closest_t(&self, p: Vec2) -> f32 {
-        (p - self.0).dot(self.1 - self.0) / (self.1 - self.0).dot(self.1 - self.0)
+    fn signed_distance(&self, p: Vec2) -> SignedDistance {
+        let t = ((p - self.0).dot(self.1 - self.0) / (self.1 - self.0).dot(self.1 - self.0))
+            .clamp(0.0, 1.0);
+        let v = self.pos_at_t(t) - p;
+        let d = self.dir_at_t(t);
+
+        let distance = v.length().copysign(d.cross(v));
+        let orthogonality = d.normalized_or_zero().cross(-v.normalized_or_zero()).abs();
+
+        SignedDistance {
+            distance,
+            orthogonality,
+        }
     }
 
     fn bounding_box(&self) -> Rect {
@@ -178,7 +173,7 @@ impl BezierCurve for Quadratic {
         2.0 * t * (self.2 - 2.0 * self.1 + self.0) + 2.0 * (self.1 - self.0)
     }
 
-    fn closest_t(&self, p: Vec2) -> f32 {
+    fn signed_distance(&self, p: Vec2) -> SignedDistance {
         let qa = self.0 - p;
         let ab = self.1 - self.0;
         let br = self.2 - self.1 - ab;
@@ -189,16 +184,28 @@ impl BezierCurve for Quadratic {
 
         let mut closest_t = 0.0;
         let mut min_dist_sqr = f32::INFINITY;
+        let mut closest_pos = Vec2::ZERO;
         for t in solve_cubic(a, b, c, d) {
             let t = t.clamp(0.0, 1.0);
-            let dist_sqr = self.pos_at_t(t).distance_squared(p);
+            let pos = self.pos_at_t(t);
+            let dist_sqr = pos.distance_squared(p);
             if dist_sqr < min_dist_sqr {
                 closest_t = t;
                 min_dist_sqr = dist_sqr;
+                closest_pos = pos;
             }
         }
 
-        closest_t
+        let v = closest_pos - p;
+        let d = self.dir_at_t(closest_t);
+
+        let distance = min_dist_sqr.sqrt().copysign(d.cross(v));
+        let orthogonality = d.normalized_or_zero().cross(-v.normalized_or_zero()).abs();
+
+        SignedDistance {
+            distance,
+            orthogonality,
+        }
     }
 
     fn bounding_box(&self) -> Rect {
@@ -245,33 +252,33 @@ impl BezierCurve for Cubic {
             + 3.0 * (self.1 - self.0)
     }
 
-    fn closest_t(&self, p: Vec2) -> f32 {
+    fn signed_distance(&self, p: Vec2) -> SignedDistance {
         // taken from Chlumský's msdfgen: https://github.com/Chlumsky/msdfgen/blob/master/core/edge-segments.cpp
         const SEARCH_STARTS: usize = 4;
         const SEARCH_STEPS: usize = 4;
 
-        let _qa = self.0 - p;
-        let _ab = self.1 - self.0;
-        let _br = self.2 - self.1 - _ab;
-        let _as = (self.3 - self.2) - (self.2 - self.1) - _br;
+        let qa_ = self.0 - p;
+        let ab_ = self.1 - self.0;
+        let br_ = self.2 - self.1 - ab_;
+        let as_ = (self.3 - self.2) - (self.2 - self.1) - br_;
 
-        let (mut min_distance, mut closest_t) = {
-            let start_distance = _qa.length();
-            let end_distance = (self.3 - p).length();
+        let (mut min_dist_sqr, mut closest_t) = {
+            let start_dist_sqr = qa_.length_squared();
+            let end_dist_sqr = (self.3 - p).length_squared();
 
-            if start_distance <= end_distance {
-                (start_distance, 0.0)
+            if start_dist_sqr <= end_dist_sqr {
+                (start_dist_sqr, 0.0)
             } else {
-                (end_distance, 1.0)
+                (end_dist_sqr, 1.0)
             }
         };
 
         for i in 0..=SEARCH_STARTS {
             let mut t = i as f32 / SEARCH_STARTS as f32;
-            let mut qe = _qa + 3.0 * t * _ab + 3.0 * t * t * _br + t * t * t * _as;
+            let mut qe = qa_ + 3.0 * t * ab_ + 3.0 * t * t * br_ + t * t * t * as_;
             for _ in 0..SEARCH_STEPS {
-                let d1 = 3.0 * _ab + 6.0 * t * _br + 3.0 * t * t * _as;
-                let d2 = 6.0 * _br + 6.0 * t * _as;
+                let d1 = 3.0 * ab_ + 6.0 * t * br_ + 3.0 * t * t * as_;
+                let d2 = 6.0 * br_ + 6.0 * t * as_;
 
                 t -= qe.dot(d1) / (d1.dot(d1) + qe.dot(d2));
 
@@ -279,16 +286,25 @@ impl BezierCurve for Cubic {
                     break;
                 }
 
-                qe = _qa + 3.0 * t * _ab + 3.0 * t * t * _br + t * t * t * _as;
-                let distance = qe.length();
-                if distance < min_distance {
-                    min_distance = distance;
+                qe = qa_ + 3.0 * t * ab_ + 3.0 * t * t * br_ + t * t * t * as_;
+                let dist_sqr = qe.length_squared();
+                if dist_sqr < min_dist_sqr {
+                    min_dist_sqr = dist_sqr;
                     closest_t = t;
                 }
             }
         }
 
-        closest_t
+        let v = self.pos_at_t(closest_t) - p;
+        let d = self.dir_at_t(closest_t);
+
+        let distance = min_dist_sqr.sqrt().copysign(d.cross(v));
+        let orthogonality = d.normalized_or_zero().cross(-v.normalized_or_zero()).abs();
+
+        SignedDistance {
+            distance,
+            orthogonality,
+        }
     }
 
     fn bounding_box(&self) -> Rect {
@@ -349,11 +365,11 @@ impl BezierCurve for Curve {
         }
     }
 
-    fn closest_t(&self, p: Vec2) -> f32 {
+    fn signed_distance(&self, p: Vec2) -> SignedDistance {
         match self {
-            Curve::Line(line) => line.closest_t(p),
-            Curve::Quad(quadratic) => quadratic.closest_t(p),
-            Curve::Cubic(cubic) => cubic.closest_t(p),
+            Curve::Line(line) => line.signed_distance(p),
+            Curve::Quad(quadratic) => quadratic.signed_distance(p),
+            Curve::Cubic(cubic) => cubic.signed_distance(p),
         }
     }
 
@@ -370,14 +386,6 @@ impl BezierCurve for Curve {
             Curve::Line(line) => line.split(t).map(|c| c.into()),
             Curve::Quad(quadratic) => quadratic.split(t).map(|c| c.into()),
             Curve::Cubic(cubic) => cubic.split(t).map(|c| c.into()),
-        }
-    }
-
-    fn signed_distance(&self, p: Vec2) -> SignedDistance {
-        match self {
-            Curve::Line(line) => line.signed_distance(p),
-            Curve::Quad(quadratic) => quadratic.signed_distance(p),
-            Curve::Cubic(cubic) => cubic.signed_distance(p),
         }
     }
 }

@@ -11,6 +11,18 @@ pub struct SdfConfig {
     pub min_edge_size_px: f32,
 }
 
+impl SdfConfig {
+    #[cfg(feature = "ttf-parser")]
+    pub fn from_face(face: &ttf_parser::Face, px_per_em: f32, sdf_radius_px: f32) -> Self {
+        Self {
+            unit_scale: (face.units_per_em() as f32).recip(),
+            size_px: px_per_em,
+            sdf_radius_px,
+            min_edge_size_px: 2.0,
+        }
+    }
+}
+
 pub fn rasterize_mtsdf(shape: &Shape, bitmap: &mut MtsdfBitmap, config: &SdfConfig) -> Rect {
     let unit_to_px = config.size_px * config.unit_scale;
     let px_to_unit = unit_to_px.recip();
