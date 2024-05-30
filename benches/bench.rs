@@ -49,7 +49,7 @@ fn bench_shape_parse(c: &mut criterion::Criterion) {
 fn glyph_raster_bench(c: &mut criterion::Criterion) {
     let face = noto_sans();
     let shapes = ascii_shapes(&face);
-    let mut bitmap = smolmsdf::Bitmap::new(0, 0);
+    let mut bitmap = smolmsdf::Bitmap::with_size(0, 0);
 
     for (px_per_em, sdf_radius_px) in [(64.0, 4.0), (32.0, 2.0), (16.0, 1.0)] {
         let config = smolmsdf::SdfConfig::from_face(&face, px_per_em, sdf_radius_px);

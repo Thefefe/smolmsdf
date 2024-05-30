@@ -1,40 +1,44 @@
 use super::math::{lerp, solve_cubic, solve_quadratic, Rect, Vec2};
 
+/// A linear bézer curve with it's p0, and p1 start and end points.
 #[derive(Debug, Clone, Copy)]
-pub struct Line(pub Vec2, pub Vec2);
+pub struct Linear(pub Vec2, pub Vec2);
 
+/// A quadratic bézier curve where p0 and p2 are the start and end point respectively.
 #[derive(Debug, Clone, Copy)]
 pub struct Quadratic(pub Vec2, pub Vec2, pub Vec2);
 
+/// A cubic bézier curve where p0 and p3 are the start and end point respectively.
 #[derive(Debug, Clone, Copy)]
 pub struct Cubic(pub Vec2, pub Vec2, pub Vec2, pub Vec2);
 
+/// A general n-order bézier curve where n is between 1 and 3 (inclusive).
 #[derive(Debug, Clone, Copy)]
 pub enum Curve {
-    Line(Line),
-    Quad(Quadratic),
+    Linear(Linear),
+    Quadratic(Quadratic),
     Cubic(Cubic),
 }
 
 impl std::fmt::Display for Curve {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Line(Line(p0, p1)) => write!(f, "line {p0} {p1}"),
-            Self::Quad(Quadratic(p0, p1, p2)) => write!(f, "quad {p0} {p1} {p2}"),
+            Self::Linear(Linear(p0, p1)) => write!(f, "line {p0} {p1}"),
+            Self::Quadratic(Quadratic(p0, p1, p2)) => write!(f, "quad {p0} {p1} {p2}"),
             Self::Cubic(Cubic(p0, p1, p2, p3)) => write!(f, "cubic {p0} {p1} {p2} {p3}"),
         }
     }
 }
 
-impl From<Line> for Curve {
-    fn from(value: Line) -> Self {
-        Self::Line(value)
+impl From<Linear> for Curve {
+    fn from(value: Linear) -> Self {
+        Self::Linear(value)
     }
 }
 
 impl From<Quadratic> for Curve {
     fn from(value: Quadratic) -> Self {
-        Self::Quad(value)
+        Self::Quadratic(value)
     }
 }
 
@@ -45,26 +49,29 @@ impl From<Cubic> for Curve {
 }
 
 impl Curve {
+    /// The start of the bézier curve
     pub fn start_point(&self) -> Vec2 {
         match self {
-            Curve::Line(line) => line.0,
-            Curve::Quad(quad) => quad.0,
+            Curve::Linear(line) => line.0,
+            Curve::Quadratic(quad) => quad.0,
             Curve::Cubic(cubic) => cubic.0,
         }
     }
-
+    
+    /// The end of the bézier curve
     pub fn end_point(&self) -> Vec2 {
         match self {
-            Curve::Line(line) => line.1,
-            Curve::Quad(quad) => quad.2,
+            Curve::Linear(line) => line.1,
+            Curve::Quadratic(quad) => quad.2,
             Curve::Cubic(cubic) => cubic.3,
         }
     }
 
+    /// Moves the end points of the bézir curve in a way that makes minimal modifications to it's overall shape.
     pub fn move_end_points(&mut self, new_start: Vec2, new_end: Vec2) {
         match self {
-            Curve::Line(line) => *line = Line(new_start, new_end),
-            Curve::Quad(quad) => {
+            Curve::Linear(line) => *line = Linear(new_start, new_end),
+            Curve::Quadratic(quad) => {
                 let Quadratic(p0, p1, p2) = *quad;
 
                 let p10_pr_num = (p0 - p1).cross(new_start - p0);
@@ -88,10 +95,12 @@ impl Curve {
         }
     }
 
+    /// Moves the start point of the bézir curve in a way that makes minimal modifications to it's overall shape.
     pub fn move_start_point(&mut self, new_start: Vec2) {
         self.move_end_points(new_start, self.end_point());
     }
 
+    /// Moves the end point of the bézir curve in a way that makes minimal modifications to it's overall shape.
     pub fn move_end_point(&mut self, new_end: Vec2) {
         self.move_end_points(self.start_point(), new_end);
     }
@@ -120,15 +129,27 @@ impl PartialOrd for SignedDistance {
     }
 }
 
+/// A general interface for a bézier curve
 pub trait BezierCurve: Sized {
+    /// The position of the point on the curve with a value of t
     fn pos_at_t(&self, t: f32) -> Vec2;
+    
+    /// The direction of the point on the curve with a value of t.
+    /// 
+    /// This is also the derivative of the curve at t.
     fn dir_at_t(&self, t: f32) -> Vec2;
+
+    /// The signed distance of a point from the curve.
     fn signed_distance(&self, p: Vec2) -> SignedDistance;
+    
+    /// The tight bounding box of the curve.
     fn bounding_box(&self) -> Rect;
+
+    /// Splits the curve into two curves at point t.
     fn split(&self, t: f32) -> [Self; 2];
 }
 
-impl BezierCurve for Line {
+impl BezierCurve for Linear {
     fn pos_at_t(&self, t: f32) -> Vec2 {
         self.0 + t * (self.1 - self.0)
     }
@@ -160,7 +181,7 @@ impl BezierCurve for Line {
 
     fn split(&self, t: f32) -> [Self; 2] {
         let c = lerp(self.0, self.1, t);
-        [Line(self.0, c), Line(c, self.1)]
+        [Linear(self.0, c), Linear(c, self.1)]
     }
 }
 
@@ -228,6 +249,7 @@ impl BezierCurve for Quadratic {
 }
 
 impl Quadratic {
+    /// Upgrades this quadratic curve to a cubic
     pub fn as_cubic(&self) -> Cubic {
         Cubic(
             self.0,
@@ -351,40 +373,40 @@ impl BezierCurve for Cubic {
 impl BezierCurve for Curve {
     fn pos_at_t(&self, t: f32) -> Vec2 {
         match self {
-            Curve::Line(line) => line.pos_at_t(t),
-            Curve::Quad(quadratic) => quadratic.pos_at_t(t),
+            Curve::Linear(line) => line.pos_at_t(t),
+            Curve::Quadratic(quadratic) => quadratic.pos_at_t(t),
             Curve::Cubic(cubic) => cubic.pos_at_t(t),
         }
     }
 
     fn dir_at_t(&self, t: f32) -> Vec2 {
         match self {
-            Curve::Line(line) => line.dir_at_t(t),
-            Curve::Quad(quadratic) => quadratic.dir_at_t(t),
+            Curve::Linear(line) => line.dir_at_t(t),
+            Curve::Quadratic(quadratic) => quadratic.dir_at_t(t),
             Curve::Cubic(cubic) => cubic.dir_at_t(t),
         }
     }
 
     fn signed_distance(&self, p: Vec2) -> SignedDistance {
         match self {
-            Curve::Line(line) => line.signed_distance(p),
-            Curve::Quad(quadratic) => quadratic.signed_distance(p),
+            Curve::Linear(line) => line.signed_distance(p),
+            Curve::Quadratic(quadratic) => quadratic.signed_distance(p),
             Curve::Cubic(cubic) => cubic.signed_distance(p),
         }
     }
 
     fn bounding_box(&self) -> Rect {
         match self {
-            Curve::Line(line) => line.bounding_box(),
-            Curve::Quad(quadratic) => quadratic.bounding_box(),
+            Curve::Linear(line) => line.bounding_box(),
+            Curve::Quadratic(quadratic) => quadratic.bounding_box(),
             Curve::Cubic(cubic) => cubic.bounding_box(),
         }
     }
 
     fn split(&self, t: f32) -> [Self; 2] {
         match self {
-            Curve::Line(line) => line.split(t).map(|c| c.into()),
-            Curve::Quad(quadratic) => quadratic.split(t).map(|c| c.into()),
+            Curve::Linear(line) => line.split(t).map(|c| c.into()),
+            Curve::Quadratic(quadratic) => quadratic.split(t).map(|c| c.into()),
             Curve::Cubic(cubic) => cubic.split(t).map(|c| c.into()),
         }
     }

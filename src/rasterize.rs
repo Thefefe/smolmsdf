@@ -3,11 +3,20 @@ use super::{
     BezierCurve, Curve, MsdfBitmap, MtsdfBitmap, SdfBitmap, Shape, SignedDistance,
 };
 
+/// Sdf rasterization configuration
 #[derive(Debug, Clone, Copy)]
 pub struct SdfConfig {
+    /// Scales the units of the shape to 1px. For fonts this should be `1.0 / units_per_em`.
     pub unit_scale: f32,
+    /// The size of one unit after multipled by `unit_scale` in pixels. For fonts this should be 
+    /// the desired px_per_em for the renderer bitmap.
     pub size_px: f32,
+    /// The maximum distance in a distance field in pixels.
     pub sdf_radius_px: f32,
+    /// The minimum size of a shape edge that gets colored during msdf rasterization.
+    /// Edges smaller then this are colored white.
+    /// 
+    /// Ignored on single channel rasterization.
     pub min_edge_size_px: f32,
 }
 
@@ -23,6 +32,12 @@ impl SdfConfig {
     }
 }
 
+/// Rasterizes shape to the provided mtsdf bitmap. The rgb channels store the multi-channel signed distance field,
+/// while the alpha channel stores the true distance field.
+/// The bitmap gets resized to tightly fit the scaled shape.
+/// 
+/// Return the rect of shape scaled to 1px. This rect can be used to render the shape at a specific size
+/// by simply multiplying it by the size in pixels.
 pub fn rasterize_mtsdf(shape: &Shape, bitmap: &mut MtsdfBitmap, config: &SdfConfig) -> Rect {
     let unit_to_px = config.size_px * config.unit_scale;
     let px_to_unit = unit_to_px.recip();
@@ -56,6 +71,11 @@ pub fn rasterize_mtsdf(shape: &Shape, bitmap: &mut MtsdfBitmap, config: &SdfConf
     }
 }
 
+/// Rasterizes shape to the provided msdf bitmap. The rgb channels store the multi-channel signed distance field.
+/// The bitmap gets resized to tightly fit the scaled shape.
+/// 
+/// Return the rect of shape scaled to 1px. This rect can be used to render the shape at a specific size
+/// by simply multiplying it by the size in pixels.
 pub fn rasterize_msdf(shape: &Shape, bitmap: &mut MsdfBitmap, config: &SdfConfig) -> Rect {
     let unit_to_px = config.size_px * config.unit_scale;
     let px_to_unit = unit_to_px.recip();
@@ -89,6 +109,10 @@ pub fn rasterize_msdf(shape: &Shape, bitmap: &mut MsdfBitmap, config: &SdfConfig
     }
 }
 
+/// Rasterizes shape to the provided sdf gray-scale bitmap.
+/// 
+/// Return the rect of shape scaled to 1px. This rect can be used to render the shape at a specific size
+/// by simply multiplying it by the size in pixels.
 pub fn rasterize_sdf(shape: &Shape, bitmap: &mut SdfBitmap, config: &SdfConfig) -> Rect {
     let unit_to_px = config.size_px * config.unit_scale;
     let px_to_unit = unit_to_px.recip();

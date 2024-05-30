@@ -3,6 +3,12 @@ use super::{
     math::{lerp, median, Vec3},
 };
 
+/// The simplest error correction algorithm. While it's very fast and doesn't use any additional allocations,
+/// it doesn't correct all of the errors, however in most cases it removes the most noticable artifacts.
+/// 
+/// It works by detecting when in the interpolation between two pixels the sign of the median value changes,
+/// but the signs of the medians in the ends match.
+/// When this is detected both pixels' msdf components are set to contain the median values in all channels. 
 pub fn correct_errors_interp_sign<P: Msd>(image: &mut Bitmap<P>) {
     let [width, height] = image.dimensions();
 
@@ -58,8 +64,12 @@ fn interpolation_intersections(a: Vec3, b: Vec3) -> impl Iterator<Item = f32> {
         .filter(move |&t| 0.0 < t && t < 1.0)
 }
 
+/// Something that can store a multi-channel distance field.
 pub trait Msd: Copy + Default {
+    /// Returns the stored multi-channel distance.
     fn signed_distances(self) -> Vec3;
+
+    // Sets the stored multi-channel distance to the median distance.
     fn set_median(&mut self);
 }
 

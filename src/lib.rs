@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod math;
 pub use math::{Rect, Vec2};
 

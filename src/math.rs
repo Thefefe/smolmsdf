@@ -1,5 +1,6 @@
 use std::{f32::consts::PI, ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign}};
 
+/// A 2 component vector
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct Vec2 {
     pub x: f32,
@@ -21,36 +22,45 @@ impl std::fmt::Display for Vec2 {
 impl Vec2 {
     pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
 
+    /// Creates a new vector
     #[inline]
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 
+    /// Creates a new vector where all elements are `v`.
     #[inline]
     pub fn splat(v: f32) -> Self {
         Self { x: v, y: v }
     }
 
+    /// Return an array of the elements in order.
     #[inline]
     pub fn to_array(self) -> [f32; 2] {
         [self.x, self.y]
     }
 
+    /// Compute the dot product of `self` and `rhs`
     #[inline]
     pub fn dot(self, rhs: Self) -> f32 {
         (self.x * rhs.x) + (self.y * rhs.y)
     }
 
+    /// Compute the 2D cross product of `self` and `rhs`.
+    /// 
+    /// Also known as wedge product, perpendicular dot product or determinant.
     #[inline]
     pub fn cross(self, rhs: Self) -> f32 {
         (self.x * rhs.y) - (self.y * rhs.x)
     }
 
+    /// Return `self` with a length set to 1.0.
     #[inline]
     pub fn normalized(self) -> Vec2 {
         self / self.length()
     }
 
+    /// Return `self` with a length set to 1.0, or 0.0 if the length was 0.0.
     #[inline]
     pub fn normalized_or_zero(self) -> Vec2 {
         let length_recip = self.length().recip();
@@ -61,41 +71,49 @@ impl Vec2 {
         }
     }
 
+    /// Return the length of the vector
     #[inline]
     pub fn length(self) -> f32 {
         self.dot(self).sqrt()
     }
 
-    #[inline]
-    pub fn distance(self, rhs: Self) -> f32 {
-        (self - rhs).length()
-    }
-
-    #[inline]
-    pub fn distance_squared(self, rhs: Self) -> f32 {
-        (self - rhs).length_squared()
-    }
-
+    /// Return the length squared of the vector
     #[inline]
     pub fn length_squared(self) -> f32 {
         self.dot(self)
     }
 
+    /// Return the distance between `self` and `rhs`
+    #[inline]
+    pub fn distance(self, rhs: Self) -> f32 {
+        (self - rhs).length()
+    }
+
+    /// Return the distance squared between `self` and `rhs`
+    #[inline]
+    pub fn distance_squared(self, rhs: Self) -> f32 {
+        (self - rhs).length_squared()
+    }
+
+    /// Returns a vector containing the minimum values of each element.
     #[inline]
     pub fn min(self, rhs: Self) -> Self {
         Self::new(self.x.min(rhs.x), self.y.min(rhs.y))
     }
 
+    /// Returns a vector containing the maximum values of each element.
     #[inline]
     pub fn max(self, rhs: Self) -> Self {
         Self::new(self.x.max(rhs.x), self.y.max(rhs.y))
     }
 
+    // Returns the value of the smallest component.
     #[inline]
     pub fn min_component(self) -> f32 {
         self.x.min(self.y)
     }
 
+    // Returns the value of the largest component.
     #[inline]
     pub fn max_component(self) -> f32 {
         self.x.max(self.y)
@@ -219,6 +237,7 @@ impl DivAssign<f32> for Vec2 {
     }
 }
 
+/// A 3 component vector
 #[derive(Debug, Clone, Copy)]
 pub struct Vec3 {
     pub x: f32,
@@ -227,10 +246,12 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
+    /// Creates a new vector from the given array
     pub fn from_array([x, y, z]: [f32; 3]) -> Self {
         Self { x, y, z }
     }
 
+    /// Return an array of the elements in order.
     pub fn to_array(self) -> [f32; 3] {
         [self.x, self.y, self.z]
     }
@@ -277,6 +298,7 @@ pub fn vec2(x: f32, y: f32) -> Vec2 {
     Vec2 { x, y }
 }
 
+/// A 2 dimensional axis-aligned rectangle.
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
     pub min: Vec2,
@@ -290,6 +312,7 @@ impl Default for Rect {
 }
 
 impl Rect {
+    /// The smallest possible rectangle, with an area of -INFINITY.
     pub const MIN: Self = Self {
         min: Vec2 {
             x: f32::INFINITY,
@@ -301,6 +324,7 @@ impl Rect {
         },
     };
 
+    /// Creates a new rectangle
     #[inline]
     pub fn new(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
         Self {
@@ -309,11 +333,13 @@ impl Rect {
         }
     }
 
+    /// Returns the size of the rectangle
     #[inline]
     pub fn size(self) -> Vec2 {
         self.max - self.min
     }
 
+    /// Returns a new rectangle width it's size expanded in all directions by v
     #[inline]
     pub fn expanded(self, v: f32) -> Self {
         Self {
@@ -322,6 +348,7 @@ impl Rect {
         }
     }
 
+    /// Returns a new rectangle with a size sufficient to containt both `self` and `p`
     #[inline]
     pub fn fitted_to_point(self, p: Vec2) -> Self {
         Self {
@@ -330,6 +357,7 @@ impl Rect {
         }
     }
 
+    /// Returns a new rectangle with a size sufficient to containt both `self` and `r`
     #[inline]
     pub fn fitted_to_rect(self, r: Rect) -> Self {
         Self {
@@ -338,12 +366,14 @@ impl Rect {
         }
     }
 
+    /// Checks if point `p` is inside the rectangle.
     #[inline]
     pub fn is_point_inside(self, p: Vec2) -> bool {
         self.min.x <= p.x && p.x <= self.max.x && self.min.y <= p.y && p.y <= self.max.y
     }
 }
 
+/// A general linear interpolation
 #[inline]
 pub fn lerp<T1, T0>(a: T0, b: T0, t: T1) -> T0
 where
@@ -356,10 +386,12 @@ where
     a + (b - a) * t
 }
 
+/// Returns the median value of the the given array
 pub fn median([r, g, b]: [f32; 3]) -> f32 {
     f32::max(f32::min(r, g), f32::min(f32::max(r, g), b))
 }
 
+/// Solves the given quadratic equation.
 pub fn solve_quadratic(a: f32, b: f32, c: f32) -> Roots {
     if a == 0.0 || b.abs() > 1e12 * a.abs() {
         if b == 0.0 || c == 0.0 {
@@ -383,7 +415,7 @@ pub fn solve_quadratic(a: f32, b: f32, c: f32) -> Roots {
     }
 }
 
-pub fn solve_cubic_normed(mut a: f32, b: f32, c: f32) -> Roots {
+fn solve_cubic_normed(mut a: f32, b: f32, c: f32) -> Roots {
     let a2 = a * a;
     let mut q = 1.0 / 9.0 * (a2 - 3.0 * b);
     let r = 1.0 / 54.0 * (a * (2.0 * a2 - 9.0 * b) + 27.0 * c);
@@ -412,6 +444,7 @@ pub fn solve_cubic_normed(mut a: f32, b: f32, c: f32) -> Roots {
     }
 }
 
+/// Solves the given cubic equation.
 pub fn solve_cubic(a: f32, b: f32, c: f32, d: f32) -> Roots {
     if a != 0.0 {
         let bn = b / a;
@@ -423,6 +456,7 @@ pub fn solve_cubic(a: f32, b: f32, c: f32, d: f32) -> Roots {
     solve_quadratic(b, c, d)
 }
 
+/// The possible roots of a equation.
 #[derive(Debug, Clone, Copy)]
 pub struct Roots {
     count: usize,
@@ -430,6 +464,7 @@ pub struct Roots {
 }
 
 impl Roots {
+    /// No roots.
     fn none() -> Self {
         Self {
             count: 1,
@@ -437,6 +472,7 @@ impl Roots {
         }
     }
 
+    /// One root.
     fn one(r0: f32) -> Self {
         Self {
             count: 1,
@@ -444,6 +480,7 @@ impl Roots {
         }
     }
 
+    /// Two roots.
     fn two(r0: f32, r1: f32) -> Self {
         Self {
             count: 2,
@@ -451,6 +488,7 @@ impl Roots {
         }
     }
 
+    /// Three roots.
     fn three(r0: f32, r1: f32, r2: f32) -> Self {
         Self {
             count: 3,

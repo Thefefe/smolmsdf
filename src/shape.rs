@@ -1,5 +1,5 @@
 use super::{
-    curve::{BezierCurve, Curve, Line, Quadratic, Cubic},
+    curve::{BezierCurve, Curve, Linear, Quadratic, Cubic},
     math::{vec2, Rect, Vec2},
 };
 use std::ops::Range;
@@ -17,8 +17,10 @@ pub struct Edge {
     pub aabb: Rect,
 }
 
+/// Configuration for a shape writer.
 #[derive(Debug, Clone, Copy)]
 pub struct ShapeConfig {
+    /// The sin of the minimum angle(in radians) between edges.
     pub angle_threshold_sin: f32,
     // pub size_threshold: f32,
 }
@@ -32,6 +34,7 @@ impl Default for ShapeConfig {
     }
 }
 
+/// A shape that can be rasterized as a signed distance field.
 #[derive(Debug, Clone, Default)]
 pub struct Shape {
     pub curves: Vec<Curve>,
@@ -57,6 +60,7 @@ impl Shape {
         self.shape_aabb = Rect::MIN;
     }
 
+    /// Constructs a writer for this shape with the given config.
     pub fn writer(&mut self, config: ShapeConfig) -> ShapeWriter {
         ShapeWriter {
             shape: self,
@@ -71,6 +75,7 @@ impl Shape {
     }
 }
 
+#[derive(Debug)]
 pub struct ShapeWriter<'a> {
     shape: &'a mut Shape,
     pub config: ShapeConfig,
@@ -211,14 +216,14 @@ impl ttf_parser::OutlineBuilder for ShapeWriter<'_> {
     fn line_to(&mut self, x: f32, y: f32) {
         let a = self.current_point;
         let b = vec2(x, y);
-        self.add_curve(Curve::Line(Line(a, b)));
+        self.add_curve(Curve::Linear(Linear(a, b)));
     }
 
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
         let a = self.current_point;
         let b = vec2(x1, y1);
         let c = vec2(x, y);
-        self.add_curve(Curve::Quad(Quadratic(a, b, c)));
+        self.add_curve(Curve::Quadratic(Quadratic(a, b, c)));
     }
 
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
